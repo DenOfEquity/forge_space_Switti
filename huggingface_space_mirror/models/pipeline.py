@@ -75,7 +75,7 @@ class SwittiPipeline:
         encode_null: bool = True,
     ):
 
-        if prompt == self.last_positive and (null_prompt == self.last_negative and encode_null) and self.prompt_embeds:
+        if prompt == self.last_positive and null_prompt == self.last_negative and self.prompt_embeds is not None:
             prompt_embeds = self.prompt_embeds
             pooled_prompt_embeds = self.pooled_prompt_embeds
             attn_bias = self.attn_bias
