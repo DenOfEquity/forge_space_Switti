@@ -1,21 +1,25 @@
 import gradio as gr
+
 import numpy as np
 import random
 
 import spaces
 from models import SwittiPipeline
+from models1024 import SwittiPipeline1024
 import torch
 import gc
+from PIL.PngImagePlugin import PngInfo
+from datetime import datetime
 
-
-pipe = SwittiPipeline.from_pretrained()
-spaces.automatically_move_pipeline_components(pipe)
+pipe = None
+lastModel = None
 
 MAX_SEED = np.iinfo(np.int32).max
 
 
-@spaces.GPU(duration=65)
+@spaces.GPU()
 def infer(
+    model,
     prompt,
     negative_prompt="",
     seed=42,
@@ -30,9 +34,22 @@ def infer(
     last_scale_temp=1,
     progress=gr.Progress(track_tqdm=True),
 ):
+    global pipe, lastModel
+    
+    if model != lastModel:
+        pipe = None
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    if pipe is None:
+        if model == "512":
+            pipe = SwittiPipeline.from_pretrained()
+        elif model == "1024":
+            pipe = SwittiPipeline1024.from_pretrained()
+        lastModel = model
+
     if randomize_seed:
         seed = random.randint(0, MAX_SEED)
-
     
     turn_on_cfg_start_si = 2 if more_diverse else 0
 
@@ -49,6 +66,13 @@ def infer(
         seed=seed,
         last_scale_temp=last_scale_temp,
     )[0]
+
+    info = f"{prompt}\nNegative prompt: {negative_prompt}\nSize: {model}x{model}, Seed: {seed}, CFG scale: {guidance_scale}, Model (Switti): {model}"
+    output_path = f"outputs\\Switti_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+
+    metadata = PngInfo()
+    metadata.add_text("parameters", info)
+    image.save(output_path, format='PNG', pnginfo=metadata)
 
     return image, seed
 
@@ -73,6 +97,9 @@ css = """
     margin: 0 auto;
     max-width: 640px;
 }
+footer {
+    display: none !important;
+}
 """
 
 with gr.Blocks(css=css) as demo:
@@ -80,6 +107,8 @@ with gr.Blocks(css=css) as demo:
         with gr.Column(elem_id="col-container"):
             with gr.Row():
                 gr.Markdown(" # [Switti](https://yandex-research.github.io/switti)")
+
+            model = gr.Dropdown(choices=["512", "1024"], value="512", label="Model selection")
 
             prompt = gr.Text(
                 label="Prompt",
@@ -135,16 +164,16 @@ with gr.Blocks(css=css) as demo:
                     smooth_start_si = gr.Slider(
                         label="Smoothing starting scale",
                         minimum=0,
-                        maximum=10,
+                        maximum=14,
                         step=1,
                         value=2,
                     )
                     turn_off_cfg_start_si = gr.Slider(
                         label="Disable CFG starting scale",
                         minimum=0,
-                        maximum=10,
+                        maximum=14,
                         step=1,
-                        value=8,
+                        value=11,
                     )
                 with gr.Row():
                     more_diverse = gr.Checkbox(label="More diverse", value=False)
@@ -166,6 +195,7 @@ with gr.Blocks(css=css) as demo:
         triggers=[run_button.click, prompt.submit],
         fn=infer,
         inputs=[
+            model,
             prompt,
             negative_prompt,
             seed,
@@ -185,5 +215,5 @@ with gr.Blocks(css=css) as demo:
     demo.unload(fn=unload)
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.queue.launch()
     
