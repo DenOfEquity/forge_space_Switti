@@ -13,3 +13,5 @@ approximate minimum requirements: 8GB VRAM, 16GB RAM
 
 >[!IMPORTANT]
 >You need to copy/save the result manually.
+
+See also/instead the forge_space_Switti_1024 repo, for 1024px generation.

@@ -5,6 +5,7 @@ import random
 import spaces
 from models import SwittiPipeline
 import torch
+import gc
 
 
 pipe = SwittiPipeline.from_pretrained()
@@ -51,6 +52,12 @@ def infer(
 
     return image, seed
 
+def unload():
+    global pipe
+    del pipe
+    gc.collect()
+    torch.cuda.empty_cache()
+
 
 examples = [
     "Cute winter dragon baby, kawaii, Pixar, ultra detailed, glacial background, extremely realistic.", 
@@ -69,104 +76,91 @@ css = """
 """
 
 with gr.Blocks(css=css) as demo:
-    with gr.Column(elem_id="col-container"):
-        with gr.Row():
-            gr.Markdown(" # [Switti](https://yandex-research.github.io/switti)", scale=2)
-            run_button = gr.Button("Run", scale=0, variant="primary")
+    with gr.Row():
+        with gr.Column(elem_id="col-container"):
+            with gr.Row():
+                gr.Markdown(" # [Switti](https://yandex-research.github.io/switti)")
 
-        prompt = gr.Text(
-            label="Prompt",
-            show_label=False,
-            lines=3,
-            placeholder="Enter your prompt",
-            container=False,
-        )
-
-        result = gr.Image(label="Result", show_label=False)
-
-        seed = gr.Number(
-            label="Seed",
-            minimum=0,
-            maximum=MAX_SEED,
-            value=0,
-        )
-
-        randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-
-        guidance_scale = gr.Slider(
-            label="Guidance scale",
-            minimum=1.0,
-            maximum=10.,
-            step=0.1,
-            value=4.5,
-        )
-
-        with gr.Accordion("Advanced Settings", open=False):
-            negative_prompt = gr.Text(
-                label="Negative prompt",
-                max_lines=1,
-                placeholder="Enter a negative prompt",
-                visible=True,
+            prompt = gr.Text(
+                label="Prompt",
+                show_label=False,
+                lines=3,
+                placeholder="Enter your prompt",
+                container=False,
             )
 
-            with gr.Row():
-                top_k = gr.Slider(
-                    label="Sampling top k",
-                    minimum=10,
-                    maximum=1000,
-                    step=10,
-                    value=400,
-                )
-                top_p = gr.Slider(
-                    label="Sampling top p",
-                    minimum=0.0,
-                    maximum=1.,
-                    step=0.01,
-                    value=0.95,
-                )
-                
-            with gr.Row():
-                more_smooth = gr.Checkbox(label="Smoothing with Gumbel softmax sampling", value=True)
-                smooth_start_si = gr.Slider(
-                    label="Smoothing starting scale",
-                    minimum=0,
-                    maximum=10,
-                    step=1,
-                    value=2,
-                )
-                turn_off_cfg_start_si = gr.Slider(
-                    label="Disable CFG starting scale",
-                    minimum=0,
-                    maximum=10,
-                    step=1,
-                    value=8,
-                )
-            with gr.Row():
-                more_diverse = gr.Checkbox(label="More diverse", value=False)
-                last_scale_temp = gr.Slider(
-                    label="Temperature after disabling CFG",
-                    minimum=0.1,
-                    maximum=10,
-                    step=0.1,
-                    value=0.1,
+            seed = gr.Number(
+                label="Seed",
+                minimum=0,
+                maximum=MAX_SEED,
+                value=0,
+            )
+
+            randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+
+            guidance_scale = gr.Slider(
+                label="Guidance scale",
+                minimum=1.0,
+                maximum=10.,
+                step=0.1,
+                value=4.5,
+            )
+
+            with gr.Accordion("Advanced Settings", open=False):
+                negative_prompt = gr.Text(
+                    label="Negative prompt",
+                    max_lines=1,
+                    placeholder="Enter a negative prompt",
+                    visible=True,
                 )
 
-        gr.Examples(examples=examples, inputs=[prompt], outputs=[result, seed], fn=infer, cache_examples=False)# cache_mode="lazy")
+                with gr.Row():
+                    top_k = gr.Slider(
+                        label="Sampling top k",
+                        minimum=10,
+                        maximum=1000,
+                        step=10,
+                        value=400,
+                    )
+                    top_p = gr.Slider(
+                        label="Sampling top p",
+                        minimum=0.0,
+                        maximum=1.,
+                        step=0.01,
+                        value=0.95,
+                    )
+                    
+                with gr.Row():
+                    more_smooth = gr.Checkbox(label="Smoothing with Gumbel softmax sampling", value=True)
+                    smooth_start_si = gr.Slider(
+                        label="Smoothing starting scale",
+                        minimum=0,
+                        maximum=10,
+                        step=1,
+                        value=2,
+                    )
+                    turn_off_cfg_start_si = gr.Slider(
+                        label="Disable CFG starting scale",
+                        minimum=0,
+                        maximum=10,
+                        step=1,
+                        value=8,
+                    )
+                with gr.Row():
+                    more_diverse = gr.Checkbox(label="More diverse", value=False)
+                    last_scale_temp = gr.Slider(
+                        label="Temperature after disabling CFG",
+                        minimum=0.1,
+                        maximum=10,
+                        step=0.1,
+                        value=0.1,
+                    )
 
-        # def unload_models():
-            # pipe.switti = None
-            # pipe.vae = None
-            # pipe.text_encoder = None
-            # pipe.text_encoder_2 = None
-            # pipe.prompt_embeds = None
-            # pipe.pooled_prompt_embeds = None
-            # pipe.attn_bias = None
-            # torch.cuda.empty_cache()
-            # return
+        with gr.Column(elem_id="col-container"):
+            run_button = gr.Button("Run", variant="primary")
+            result = gr.Image(label="Result", show_label=False)
+            gr.Examples(examples=examples, inputs=[prompt], outputs=[result, seed], fn=infer, cache_examples=False)# cache_mode="lazy")
 
-        # with gr.Row():
-            # clear_button = gr.Button("Unload models", scale=0, variant="primary")
-            # clear_button.click(fn=unload_models)
 
     gr.on(
         triggers=[run_button.click, prompt.submit],
@@ -187,6 +181,8 @@ with gr.Blocks(css=css) as demo:
         ],
         outputs=[result, seed],
     )
+
+    demo.unload(fn=unload)
 
 if __name__ == "__main__":
     demo.launch()

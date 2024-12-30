@@ -137,11 +137,11 @@ class SwittiPipeline:
         else:
             self.switti.to('cuda')
         if self.vae is None:
-            self.vae = VQVAEHF.from_pretrained("yresearch/VQVAE-Switti").to(torch.bfloat16).to('cuda')
-        else:
-            self.vae.to('cuda')
+            self.vae = VQVAEHF.from_pretrained("yresearch/VQVAE-Switti").to(torch.bfloat16).to('cpu')
         
         vae_quant = self.vae.quantize
+        vae_quant.to('cuda')
+
         if seed is None:
             rng = None
         else:
@@ -264,6 +264,7 @@ class SwittiPipeline:
             b.cross_attn.kv_caching(False)
 
         self.switti.to('cpu')
+        self.vae.to('cuda')
 
         # de-normalize, from [-1, 1] to [0, 1]
         img = self.vae.fhat_to_img(f_hat).add(1).mul(0.5)
